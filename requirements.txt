@@ -1,2 +1,2 @@
-ansible>=5.4.0
+ansible>=2.9.23
 requests>=2.27.1
