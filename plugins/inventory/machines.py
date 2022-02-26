@@ -1,8 +1,9 @@
-from ansible.plugins.inventory import BaseInventoryPlugin
+from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from ansible.template import Templar
 
-class InventoryModule(BaseInventoryPlugin):
+class InventoryModule(BaseInventoryPlugin, Constructable):
 
     NAME = 'rackn.drp.machines'  # used internally by Ansible, it should match the file name but not required
 
@@ -16,12 +17,23 @@ class InventoryModule(BaseInventoryPlugin):
         return valid
 
     def parse(self, inventory, loader, path, cache=True):
-
+        super(InventoryModule, self).parse(inventory, loader, path, cache)
+        
         # Basic Stuff
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         self.loader = loader
         self.inventory = inventory
+        self.templar = Templar(loader=loader)
         self.config = self._read_config_data(path)
+        self.set_options('leading_separator', False)
+        self.leading_separator = False
+
+        self._consume_options(self.config)
+
+        self.strict = self.config['strict']
+        self.compose = self.config['compose']
+        self.groups = self.config['groups']
+        self.keyed_groups = self.config['keyed_groups']
 
         # Set some RACKN Variables
         self.rackn_headers = {
@@ -49,6 +61,15 @@ class InventoryModule(BaseInventoryPlugin):
             #   the rackn machine information and
             #   make it a variable on the machine with a prefix of rackn_
             for machine_key in machine:
+                # Add initial Variables
                 self.inventory.set_variable(machine['Name'],
                     'rackn_{}'.format(machine_key),
                     machine[machine_key])
+
+            # Add variables created by the user's Jinja2 expressions to the host
+            self._set_composite_vars(self.compose, machine, machine['Name'], strict=True)
+
+            # The following two methods combine the provided variables dictionary with the latest host variables
+            # Using these methods after _set_composite_vars() allows groups to be created with the composed variables
+            self._add_host_to_composed_groups(self.groups, machine, machine['Name'], strict=self.strict)
+            self._add_host_to_keyed_groups(self.keyed_groups, machine, machine['Name'], strict=self.strict)
