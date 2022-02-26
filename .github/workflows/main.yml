@@ -33,9 +33,8 @@ jobs:
 
       - name: Build the Ansible collection
         run: |
-          cd rackn/drp
-          mkdir -p ../../build
-          ansible-galaxy collection build -f --output-path ../../build
+          mkdir -p build
+          ansible-galaxy collection build -f --output-path build
 
       - name: Create a Release
         id: create_a_release
