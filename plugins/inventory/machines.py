@@ -3,6 +3,56 @@ import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from ansible.template import Templar
 
+DOCUMENTATION = r'''
+    name: rackn.drp.machines
+    plugin_type: inventory
+    author:
+      - Corey Wanless (@coreywan)
+    short_description: RackN DRP Machines Inventory Plugin
+    version_added: "0.0.1"
+    description:
+        - This plugin allows you to query the RackN for machines and
+          use the response data to populate the inventory file.
+    extends_documentation_fragment:
+      - inventory_cache
+      - constructed
+    options:
+        rs_endpoint:
+            description:
+              - https path to the DRP Endpoint. Example 'https://10.10.10.6:8092'
+            type: string
+            required: True
+            env:
+                - name: RS_ENDPOINT
+        rs_key:
+            description:
+              - Username:password to authenticate to DRP
+            type: string
+            required: True
+            env:
+                - name: RS_KEY
+                - name: TOWER_PASSWORD
+        validate_certs:
+            description:
+              - Validates certs or not
+            default: False
+            type: bool
+        strict:
+            description:
+              - Accepts a key/value pair and uses it to filter the
+                host records to be returned.
+            default: False
+            type: bool
+        keyed_groups:
+            description:
+            - Add machines to group based on the values of a variable.
+            type: list
+            default: []
+    requirements:
+        - python >= 3.4
+        - requests
+'''
+
 class InventoryModule(BaseInventoryPlugin, Constructable):
 
     NAME = 'rackn.drp.machines'  # used internally by Ansible, it should match the file name but not required
@@ -24,26 +74,22 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         self.loader = loader
         self.inventory = inventory
         self.templar = Templar(loader=loader)
-        self.config = self._read_config_data(path)
-        self.set_options('leading_separator', False)
-        self.leading_separator = False
+        self._read_config_data(path)
 
-        self._consume_options(self.config)
-
-        self.strict = self.config['strict']
-        self.compose = self.config['compose']
-        self.groups = self.config['groups']
-        self.keyed_groups = self.config['keyed_groups']
+        self.strict = self.get_option('strict')
+        self.compose = self.get_option('compose')
+        self.groups = self.get_option('groups')
+        self.keyed_groups = self.get_option('keyed_groups')
 
         # Set some RACKN Variables
         self.rackn_headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-        self.rackn_user = self.config['rs_key'].split(':')[0]
-        self.rackn_pass = self.config['rs_key'].split(':')[1]
-        self.rackn_url = '{}/api/v3'.format(self.config['rs_endpoint'])
-        self.rackn_validate_certs = self.config['validate_certs']
+        self.rackn_user = self.get_option('rs_key').split(':')[0]
+        self.rackn_pass = self.get_option('rs_key').split(':')[1]
+        self.rackn_url = '{}/api/v3'.format(self.get_option('rs_endpoint'))
+        self.rackn_validate_certs = self.get_option('validate_certs')
 
         # Let's go get some machine data
         get_machines_url = '{}/machines'.format(self.rackn_url)
